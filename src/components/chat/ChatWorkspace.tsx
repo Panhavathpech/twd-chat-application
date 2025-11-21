@@ -5,16 +5,20 @@ import ChatSidebar, {
   type CreateChatRequest,
 } from "@/components/chat/ChatSidebar";
 import ChatRoom from "@/components/chat/ChatRoom";
-import { useLocalUser } from "@/hooks/useLocalUser";
 import { db, generateInstantId } from "@/lib/instant";
 import type {
   ChatRecord,
   MessageRecord,
   NewMessagePayload,
+  UserProfile,
 } from "@/types/chat";
 
-const ChatWorkspace = () => {
-  const { user, setUserId } = useLocalUser();
+type ChatWorkspaceProps = {
+  currentUser: UserProfile;
+  onSignOut: () => Promise<void> | void;
+};
+
+const ChatWorkspace = ({ currentUser, onSignOut }: ChatWorkspaceProps) => {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
   const {
@@ -27,12 +31,45 @@ const ChatWorkspace = () => {
     },
   });
 
+  const {
+    data: usersData,
+    isLoading: usersLoading,
+    error: usersError,
+  } = db.useQuery({
+    users: {
+      $: {},
+    },
+  });
+
+  const people = useMemo(() => {
+    const list = ([...(usersData?.users ?? [])] as UserProfile[]).filter(
+      (person) => !!person.id,
+    );
+    return list.sort((a, b) =>
+      (a.displayName ?? a.username).localeCompare(
+        b.displayName ?? b.username,
+        "en",
+        { sensitivity: "base" },
+      ),
+    );
+  }, [usersData]);
+
+  const participantsLookup = useMemo(() => {
+    const lookup = new Map<string, UserProfile>();
+    people.forEach((person) => {
+      lookup.set(person.id, person);
+    });
+    return lookup;
+  }, [people]);
+
   const chats = useMemo(
     () =>
-      ([...(chatsData?.chats ?? [])] as ChatRecord[]).sort(
-        (a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0),
-      ),
-    [chatsData],
+      ([...(chatsData?.chats ?? [])] as ChatRecord[])
+        .filter((chat) =>
+          (chat.participants ?? []).includes(currentUser.id),
+        )
+        .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0)),
+    [chatsData, currentUser.id],
   );
 
   const resolvedChatId = useMemo(() => {
@@ -91,8 +128,8 @@ const ChatWorkspace = () => {
         db.tx.messages[messageId].update({
           id: messageId,
           chatId,
-          senderId: user.id,
-          senderName: user.name,
+          senderId: currentUser.id,
+          senderName: currentUser.displayName,
           content: payload.initialMessage,
           createdAt: timestamp,
         }),
@@ -117,8 +154,8 @@ const ChatWorkspace = () => {
       db.tx.messages[messageId].update({
         id: messageId,
         chatId: activeChat.id,
-        senderId: user.id,
-        senderName: user.name,
+        senderId: currentUser.id,
+        senderName: currentUser.displayName,
         content: trimmedText ?? undefined,
         attachments: attachments && attachments.length > 0 ? attachments : undefined,
         createdAt: timestamp,
@@ -139,8 +176,11 @@ const ChatWorkspace = () => {
           selectedChatId={resolvedChatId}
           onSelectChat={setSelectedChatId}
           onCreateChat={handleCreateChat}
-          currentUserId={user.id}
-          onChangeUser={setUserId}
+          currentUser={currentUser}
+          people={people}
+          peopleLoading={usersLoading}
+          peopleError={usersError?.message}
+          onSignOut={onSignOut}
         />
       </div>
       <div className="flex min-h-0 min-w-0 flex-1">
@@ -152,7 +192,8 @@ const ChatWorkspace = () => {
             resolvedChatId && messagesError ? messagesError.message : undefined
           }
           onSendMessage={handleSendMessage}
-          currentUser={user}
+          currentUser={currentUser}
+          participantsLookup={participantsLookup}
         />
       </div>
     </div>

@@ -56,4 +56,9 @@ export async function uploadChatImage(file: File): Promise<ImageAttachment> {
   return (await response.json()) as ImageAttachment;
 }
 
+export async function uploadUserAvatar(file: File): Promise<string> {
+  const { url } = await uploadChatImage(file);
+  return url;
+}
+
 

@@ -16,8 +16,8 @@ import type {
   ImageAttachment,
   MessageRecord,
   NewMessagePayload,
+  UserProfile,
 } from "@/types/chat";
-import type { MockUser } from "@/lib/mock-users";
 
 type ChatRoomProps = {
   chat: ChatRecord | null;
@@ -25,7 +25,8 @@ type ChatRoomProps = {
   isLoading: boolean;
   error?: string;
   onSendMessage: (payload: NewMessagePayload) => Promise<void>;
-  currentUser: MockUser;
+  currentUser: UserProfile;
+  participantsLookup: Map<string, UserProfile>;
 };
 
 const QUICK_EMOJIS = [
@@ -41,6 +42,47 @@ const QUICK_EMOJIS = [
   "❤️",
 ] as const;
 
+const LINK_REGEX = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+
+const renderMessageContent = (content: string) => {
+  const nodes: JSX.Element[] = [];
+  const regex = new RegExp(LINK_REGEX.source, "gi");
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    const start = match.index;
+    if (start > lastIndex) {
+      nodes.push(
+        <span key={`text-${start}`}>{content.slice(lastIndex, start)}</span>,
+      );
+    }
+
+    const url = match[0];
+    const href = url.startsWith("http") ? url : `https://${url}`;
+
+    nodes.push(
+      <a
+        key={`link-${start}`}
+        href={href}
+        target="_blank"
+        rel="noreferrer noopener"
+        className="break-all text-sky-300 underline underline-offset-2 hover:text-sky-100"
+      >
+        {url}
+      </a>,
+    );
+
+    lastIndex = start + url.length;
+  }
+
+  if (lastIndex < content.length) {
+    nodes.push(<span key={`text-${lastIndex}`}>{content.slice(lastIndex)}</span>);
+  }
+
+  return nodes;
+};
+
 const EmptyState = () => (
   <div className="m-auto flex max-w-md flex-col items-center text-center text-slate-400">
     <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/5 text-3xl">
@@ -55,10 +97,24 @@ const EmptyState = () => (
   </div>
 );
 
-const ChatHeader = ({ chat }: { chat: ChatRecord }) => {
+const ChatHeader = ({
+  chat,
+  participantsLookup,
+}: {
+  chat: ChatRecord;
+  participantsLookup: Map<string, UserProfile>;
+}) => {
   const participantList =
     chat.participants?.length && chat.participants.length > 0
-      ? chat.participants.join(", ")
+      ? chat.participants
+          .map((participantId) => {
+            const profile = participantsLookup.get(participantId);
+            if (!profile) {
+              return participantId;
+            }
+            return profile.handle ?? `@${profile.username}` ?? profile.displayName;
+          })
+          .join(", ")
       : "No participants yet";
 
   return (
@@ -82,9 +138,11 @@ const ChatHeader = ({ chat }: { chat: ChatRecord }) => {
 const MessageFeed = ({
   messages,
   currentUserId,
+  participantsLookup,
 }: {
   messages: MessageRecord[];
   currentUserId: string;
+  participantsLookup: Map<string, UserProfile>;
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [previewAttachment, setPreviewAttachment] =
@@ -128,8 +186,23 @@ const MessageFeed = ({
       ref={containerRef}
       className="flex h-full flex-col space-y-3 overflow-y-auto pr-2 text-sm"
     >
-      {messages.map((message) => {
+      {messages.map((message, index) => {
         const mine = message.senderId === currentUserId;
+        const senderProfile = message.senderId
+          ? participantsLookup.get(message.senderId)
+          : undefined;
+        const displaySenderName =
+          senderProfile?.displayName ??
+          senderProfile?.handle ??
+          message.senderName ??
+          "Unknown user";
+        const nextMessage = messages[index + 1];
+        const isLatestFromSender =
+          !nextMessage || nextMessage.senderId !== message.senderId;
+        const shouldShowAvatar = !mine && isLatestFromSender;
+        const avatarUrl = senderProfile?.avatarUrl;
+        const avatarFallback =
+          displaySenderName.charAt(0)?.toUpperCase() ?? "?";
         const attachments = message.attachments ?? [];
         const hasAttachments = attachments.length > 0;
         const attachmentGridCols =
@@ -141,70 +214,95 @@ const MessageFeed = ({
             className={`flex ${mine ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[75%] rounded-2xl ${
-                mine ? "bg-white text-slate-900" : "bg-white/10 text-white"
-              } ${hasAttachments ? "overflow-hidden p-0" : "px-4 py-2"} w-full sm:max-w-[520px] max-w-[90%]`}
+              className={`flex items-end gap-3 ${
+                mine ? "flex-row-reverse" : ""
+              }`}
             >
               <div
-                className={`space-y-1 ${
-                  hasAttachments ? "px-4 pt-3" : ""
-                }`.trim()}
+                className={`max-w-[75%] rounded-2xl ${
+                  mine ? "bg-white text-slate-900" : "bg-white/10 text-white"
+                } ${hasAttachments ? "overflow-hidden p-0" : "px-4 py-2"} w-full sm:max-w-[520px] max-w-[90%]`}
               >
-                <p
-                  className={`text-xs font-semibold ${
-                    mine ? "text-slate-600" : "text-white/70"
-                  }`}
+                <div
+                  className={`space-y-1 ${
+                    hasAttachments ? "px-4 pt-3" : ""
+                  }`.trim()}
                 >
-                  {message.senderName ?? "Unknown user"}
-                </p>
-                {message.content && (
                   <p
-                    className={`text-sm ${
-                      mine ? "text-slate-900" : "text-white/90"
+                    className={`text-xs font-semibold ${
+                      mine ? "text-slate-600" : "text-white/70"
                     }`}
                   >
-                    {message.content}
+                    {displaySenderName}
+                  </p>
+                  {message.content && (
+                    <p
+                      className={`text-sm ${
+                        mine ? "text-slate-900" : "text-white/90"
+                      }`}
+                    >
+                      {renderMessageContent(message.content)}
+                    </p>
+                  )}
+                </div>
+                {hasAttachments && (
+                  <div
+                    className={`${
+                      message.content ? "mt-2" : ""
+                    } grid grid-cols-1 gap-2 ${attachmentGridCols}`.trim()}
+                  >
+                    {attachments.map((attachment) => (
+                      <button
+                        key={attachment.id}
+                        type="button"
+                        onClick={() => setPreviewAttachment(attachment)}
+                        className="block w-full overflow-hidden rounded-2xl border border-white/10 bg-black/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                        aria-label="View image in fullscreen"
+                      >
+                        <Image
+                          src={attachment.url}
+                          alt={attachment.name ?? "Chat image"}
+                          width={attachment.width ?? 800}
+                          height={attachment.height ?? 600}
+                          className="w-full max-h-[360px] object-cover"
+                          sizes="(min-width: 768px) 50vw, 90vw"
+                          unoptimized
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {message.createdAt && (
+                  <p
+                    className={`${hasAttachments ? "px-4 pb-3 pt-2" : "mt-1"} text-[10px] ${
+                      mine ? "text-slate-600" : "text-slate-300"
+                    }`.trim()}
+                  >
+                    {new Intl.DateTimeFormat("en", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    }).format(new Date(message.createdAt))}
                   </p>
                 )}
               </div>
-              {hasAttachments && (
-                <div
-                  className={`${
-                    message.content ? "mt-2" : ""
-                  } grid grid-cols-1 gap-2 ${attachmentGridCols}`.trim()}
-                >
-                  {attachments.map((attachment) => (
-                    <button
-                      key={attachment.id}
-                      type="button"
-                      onClick={() => setPreviewAttachment(attachment)}
-                      className="block w-full overflow-hidden rounded-2xl border border-white/10 bg-black/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
-                      aria-label="View image in fullscreen"
-                    >
-                      <Image
-                        src={attachment.url}
-                        alt={attachment.name ?? "Chat image"}
-                        width={attachment.width ?? 800}
-                        height={attachment.height ?? 600}
-                        className="w-full max-h-[360px] object-cover"
-                        sizes="(min-width: 768px) 50vw, 90vw"
-                        unoptimized
-                      />
-                    </button>
-                  ))}
+              {shouldShowAvatar && (
+                <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full border border-white/10 bg-white/10 text-xs font-semibold text-white/80">
+                  {avatarUrl ? (
+                    <Image
+                      src={avatarUrl}
+                      alt={`${displaySenderName} avatar`}
+                      width={32}
+                      height={32}
+                      className="h-full w-full object-cover"
+                      sizes="32px"
+                      unoptimized
+                    />
+                  ) : (
+                    <span className="flex h-full w-full items-center justify-center">
+                      {avatarFallback}
+                    </span>
+                  )}
                 </div>
-              )}
-              {message.createdAt && (
-                <p
-                  className={`${hasAttachments ? "px-4 pb-3 pt-2" : "mt-1"} text-[10px] ${
-                    mine ? "text-slate-600" : "text-slate-300"
-                  }`.trim()}
-                >
-                  {new Intl.DateTimeFormat("en", {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  }).format(new Date(message.createdAt))}
-                </p>
               )}
             </div>
           </div>
@@ -309,7 +407,6 @@ const MessageComposer = ({
 
   const handleSelectEmoji = (emoji: string) => {
     setValue((prev) => `${prev}${emoji}`);
-    setShowEmojiPicker(false);
     setError(null);
   };
 
@@ -459,6 +556,7 @@ const ChatRoom = ({
   error,
   onSendMessage,
   currentUser,
+  participantsLookup,
 }: ChatRoomProps) => {
   const safeMessages = useMemo(
     () => messages.filter((message) => !!message.id),
@@ -475,7 +573,7 @@ const ChatRoom = ({
 
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col rounded-l-3xl bg-gradient-to-br from-slate-900 via-slate-950 to-black px-8 py-6">
-      <ChatHeader chat={chat} />
+      <ChatHeader chat={chat} participantsLookup={participantsLookup} />
       <div className="mt-6 flex flex-1 min-h-0 flex-col gap-4">
         <div className="min-h-0 flex-1 overflow-hidden rounded-3xl bg-black/20 p-4">
           {error && (
@@ -496,6 +594,7 @@ const ChatRoom = ({
             <MessageFeed
               messages={safeMessages}
               currentUserId={currentUser.id}
+              participantsLookup={participantsLookup}
             />
           )}
         </div>

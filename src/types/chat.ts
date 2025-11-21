@@ -30,4 +30,15 @@ export type NewMessagePayload = {
   attachments?: ImageAttachment[];
 };
 
+export type UserProfile = {
+  id: string;
+  email?: string;
+  displayName: string;
+  username: string;
+  handle?: string;
+  accent?: string;
+  avatarUrl?: string;
+  createdAt?: number;
+};
+
 
