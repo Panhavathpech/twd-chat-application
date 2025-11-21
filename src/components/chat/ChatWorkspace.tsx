@@ -100,9 +100,16 @@ const ChatWorkspace = ({ currentUser, onSignOut }: ChatWorkspaceProps) => {
 
   const messages = useMemo(
     () =>
-      ([...(messagesData?.messages ?? [])] as MessageRecord[]).sort(
-        (a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0),
-      ),
+      ([...(messagesData?.messages ?? [])] as MessageRecord[]).sort((a, b) => {
+        const aCreated = a.createdAt ?? 0;
+        const bCreated = b.createdAt ?? 0;
+        if (aCreated !== bCreated) {
+          return aCreated - bCreated;
+        }
+        const aId = a.id ?? "";
+        const bId = b.id ?? "";
+        return aId.localeCompare(bId, "en");
+      }),
     [messagesData],
   );
 
