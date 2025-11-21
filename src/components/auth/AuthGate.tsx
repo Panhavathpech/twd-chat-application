@@ -111,7 +111,7 @@ const AuthGate = () => {
   if (auth.isLoading || (auth.user && profileLoading)) {
     return (
       <div className="flex h-full w-full items-center justify-center bg-slate-950 text-white">
-        <p className="text-sm text-slate-400">Loading your workspace…</p>
+        <p className="text-sm text-slate-400">twd. team is cooking hard… one sec...</p>
       </div>
     );
   }
