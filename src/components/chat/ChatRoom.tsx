@@ -1,5 +1,6 @@
 "use client";
 
+import type { JSX } from "react";
 import {
   ChangeEvent,
   KeyboardEvent as ReactKeyboardEvent,
@@ -112,7 +113,12 @@ const ChatHeader = ({
             if (!profile) {
               return participantId;
             }
-            return profile.handle ?? `@${profile.username}` ?? profile.displayName;
+            const usernameHandle = profile.username
+              ? `@${profile.username}`
+              : undefined;
+            return (
+              profile.handle ?? usernameHandle ?? profile.displayName ?? participantId
+            );
           })
           .join(", ")
       : "No participants yet";
