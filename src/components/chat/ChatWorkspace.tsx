@@ -92,6 +92,9 @@ const ChatWorkspace = ({ currentUser, onSignOut }: ChatWorkspaceProps) => {
           messages: {
             $: {
               where: { chatId: resolvedChatId },
+              order: {
+                serverCreatedAt: "asc",
+              },
             },
           },
         }
