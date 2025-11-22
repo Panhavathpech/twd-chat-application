@@ -230,7 +230,7 @@ const ChatWorkspace = ({ currentUser, onSignOut }: ChatWorkspaceProps) => {
   const showChatRoom = isDesktop || mobileView === "chat";
 
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-slate-950 text-white md:flex-row">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-slate-950 text-white md:flex-row overscroll-none touch-pan-y">
       {showSidebar && (
         <div className="flex h-full min-h-0 w-full max-w-full flex-shrink-0 flex-col border-b border-white/5 bg-slate-950/80 backdrop-blur-xl md:w-[320px] md:border-b-0 md:border-r lg:w-[360px]">
           <ChatSidebar

@@ -177,15 +177,18 @@ const MessageFeed = ({
   messages,
   currentUserId,
   participantsLookup,
+  onUserScroll,
 }: {
   messages: MessageRecord[];
   currentUserId: string;
   participantsLookup: Map<string, UserProfile>;
+  onUserScroll?: (direction: "up" | "bottom") => void;
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [previewAttachment, setPreviewAttachment] =
     useState<ImageAttachment | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
+  const lastDirection = useRef<"up" | "bottom">("bottom");
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -199,12 +202,23 @@ const MessageFeed = ({
     const handleScroll = () => {
       const distanceFromBottom =
         el.scrollHeight - el.scrollTop - el.clientHeight;
-      setStickToBottom(distanceFromBottom < 32);
+      const nearBottom = distanceFromBottom < 32;
+      setStickToBottom(nearBottom);
+      if (!onUserScroll) {
+        return;
+      }
+      if (!nearBottom && lastDirection.current !== "up") {
+        lastDirection.current = "up";
+        onUserScroll("up");
+      } else if (nearBottom && lastDirection.current !== "bottom") {
+        lastDirection.current = "bottom";
+        onUserScroll("bottom");
+      }
     };
     handleScroll();
     el.addEventListener("scroll", handleScroll);
     return () => el.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [onUserScroll]);
 
   useEffect(() => {
     if (!previewAttachment) return;
@@ -399,9 +413,17 @@ const MessageFeed = ({
 const MessageComposer = ({
   disabled,
   onSend,
+  allowCollapse,
+  expanded,
+  onExpand,
+  onCollapse,
 }: {
   disabled?: boolean;
   onSend: (payload: NewMessagePayload) => Promise<void>;
+  allowCollapse: boolean;
+  expanded: boolean;
+  onExpand: () => void;
+  onCollapse: () => void;
 }) => {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -427,6 +449,9 @@ const MessageComposer = ({
       });
       setValue("");
       setAttachments([]);
+      if (allowCollapse) {
+        onCollapse();
+      }
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Unable to send message.",
@@ -480,9 +505,21 @@ const MessageComposer = ({
     setError(null);
   };
 
+  const showFullUI = !allowCollapse || expanded;
+
   return (
-    <div className="flex-shrink-0 space-y-2 rounded-2xl border border-white/10 bg-white/5 p-3 md:rounded-3xl">
-      <div className="flex items-center justify-between text-xs text-slate-400">
+    <div
+      className={`flex-shrink-0 transition-all duration-200 ${
+        showFullUI
+          ? "space-y-2 rounded-2xl border border-white/10 bg-white/5 p-3 md:rounded-3xl"
+          : "space-y-2 rounded-none border-none bg-transparent p-0 md:space-y-2"
+      }`}
+    >
+      <div
+        className={`flex items-center justify-between text-xs text-slate-400 transition-opacity ${
+          showFullUI ? "opacity-100" : "opacity-0 pointer-events-none md:opacity-100"
+        }`}
+      >
         <div className="flex gap-2">
           <button
             type="button"
@@ -503,7 +540,7 @@ const MessageComposer = ({
         </div>
         <p>Cmd/Ctrl + Enter to send</p>
       </div>
-      {showEmojiPicker && (
+      {showEmojiPicker && showFullUI && (
         <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-black/30 p-3">
           {QUICK_EMOJIS.map((emoji) => (
             <button
@@ -518,7 +555,7 @@ const MessageComposer = ({
           ))}
         </div>
       )}
-      {attachments.length > 0 && (
+      {attachments.length > 0 && showFullUI && (
         <div className="flex flex-wrap gap-3">
           {attachments.map((attachment) => (
             <div
@@ -556,10 +593,22 @@ const MessageComposer = ({
         }}
         onKeyDown={handleKeyDown}
         disabled={disabled || sending}
+        onFocus={() => {
+          if (allowCollapse && !expanded) {
+            onExpand();
+          }
+        }}
+        onBlur={() => {
+          if (allowCollapse && !hasContent) {
+            onCollapse();
+          }
+        }}
         placeholder={
           disabled ? "Select a chat to start typing…" : "Shift + Enter for newline, Cmd/Ctrl + Enter to send"
         }
-        className="w-full resize-none rounded-2xl border border-white/10 bg-white/0 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-white/40 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        className={`w-full resize-none rounded-2xl border border-white/10 px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-white/40 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 ${
+          showFullUI ? "bg-white/0" : "bg-white/5"
+        }`}
       />
       <input
         ref={fileInputRef}
@@ -573,7 +622,11 @@ const MessageComposer = ({
           {error}
         </p>
       )}
-      <div className="flex items-center justify-end text-xs text-slate-400">
+      <div
+        className={`flex items-center justify-end text-xs text-slate-400 transition-opacity ${
+          showFullUI ? "opacity-100" : "opacity-0 pointer-events-none md:opacity-100"
+        }`}
+      >
         <button
           type="button"
           disabled={disabled || sending || uploading}
@@ -603,6 +656,21 @@ const ChatRoom = ({
     [messages],
   );
   const showBackButton = !isDesktopViewport && typeof onBackToList === "function";
+  const allowCollapse = !isDesktopViewport;
+  const [composerExpanded, setComposerExpanded] = useState(!allowCollapse);
+
+  useEffect(() => {
+    setComposerExpanded(!allowCollapse);
+  }, [allowCollapse, chat?.id]);
+
+  const handleScrollIntent = (direction: "up" | "bottom") => {
+    if (!allowCollapse) {
+      return;
+    }
+    if (direction === "up") {
+      setComposerExpanded(false);
+    }
+  };
 
   return (
     <section className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col rounded-none bg-gradient-to-br from-slate-900 via-slate-950 to-black px-4 py-4 md:rounded-l-3xl md:px-8 md:py-6">
@@ -635,10 +703,18 @@ const ChatRoom = ({
                   messages={safeMessages}
                   currentUserId={currentUser.id}
                   participantsLookup={participantsLookup}
+                  onUserScroll={handleScrollIntent}
                 />
               )}
             </div>
-            <MessageComposer disabled={isLoading} onSend={onSendMessage} />
+            <MessageComposer
+              disabled={isLoading}
+              onSend={onSendMessage}
+              allowCollapse={allowCollapse}
+              expanded={composerExpanded}
+              onExpand={() => setComposerExpanded(true)}
+              onCollapse={() => setComposerExpanded(false)}
+            />
           </div>
         </>
       ) : (

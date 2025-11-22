@@ -699,7 +699,7 @@ const ChatSidebar = ({
       <aside
         className={`flex h-full min-h-0 w-full flex-1 flex-col ${
           existingChatsExpanded ? "gap-0" : "gap-5"
-        } bg-slate-950/70 px-4 py-4 backdrop-blur-xl overflow-y-auto md:px-5 md:py-6`}
+        } bg-slate-950/70 px-4 py-4 backdrop-blur-xl overflow-y-auto overscroll-y-contain md:px-5 md:py-6`}
       >
         <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-center justify-between border-b border-white/10 bg-slate-950/90 px-4 py-3 backdrop-blur-xl md:hidden">
           <LogoWordmark className="h-8" priority />
