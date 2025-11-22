@@ -13,9 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Instant Chat Sandbox",
+  title: "Talk at twd.",
   description:
-    "A real-time chat playground built with Next.js 16 and InstantDB.",
+    "A real-time chat playground built with Next.js 16 and InstantDB by twd.",
+  icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 
 export default function RootLayout({
