@@ -28,10 +28,10 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/twdlogo.png",
-        width: 512,
-        height: 512,
-        alt: "Talk at twd. logo",
+        url: "/share-card.png",
+        width: 1200,
+        height: 630,
+        alt: "Talk at twd. preview",
       },
     ],
   },
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     title: "Talk at twd.",
     description:
       "A real-time chat playground built with Next.js 16 and InstantDB by twd.",
-    images: ["/twdlogo.png"],
+    images: ["/share-card.png"],
   },
 };
 
