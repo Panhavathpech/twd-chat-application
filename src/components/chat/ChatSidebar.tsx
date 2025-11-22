@@ -699,8 +699,14 @@ const ChatSidebar = ({
       <aside
         className={`flex h-full min-h-0 w-full flex-1 flex-col ${
           existingChatsExpanded ? "gap-0" : "gap-5"
-        } bg-slate-950/70 p-5 backdrop-blur-xl`}
+        } bg-slate-950/70 px-4 py-4 backdrop-blur-xl overflow-y-auto md:px-5 md:py-6`}
       >
+        <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-center justify-between border-b border-white/10 bg-slate-950/90 px-4 py-3 backdrop-blur-xl md:hidden">
+          <LogoWordmark className="h-8" priority />
+          <span className="rounded-full border border-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white/80">
+            Chats
+          </span>
+        </div>
         <div
           className={`space-y-5 transition-all duration-300 ${
             existingChatsExpanded
@@ -709,9 +715,13 @@ const ChatSidebar = ({
           }`}
         >
           <div className="space-y-2">
-            <LogoWordmark className="max-h-12" priority />
+            <div className="hidden md:block">
+              <LogoWordmark className="max-h-12" priority />
+            </div>
             <div>
-              <h1 className="text-2xl font-semibold text-white">Talk at twd.</h1>
+              <h1 className="text-xl font-semibold text-white md:text-2xl">
+                Talk at twd.
+              </h1>
               <p className="mt-1 text-sm text-slate-400">
                 Experiment with multi-user conversations powered by twd.
               </p>
@@ -730,7 +740,7 @@ const ChatSidebar = ({
             onCreate={onCreateChat}
           />
         </div>
-        <div className="flex flex-1">
+        <div className="flex flex-1 min-h-0">
           <div className="flex flex-1 flex-col rounded-2xl border border-white/10 bg-white/5 p-4">
             <button
               type="button"

@@ -28,6 +28,8 @@ type ChatRoomProps = {
   onSendMessage: (payload: NewMessagePayload) => Promise<void>;
   currentUser: UserProfile;
   participantsLookup: Map<string, UserProfile>;
+  isDesktopViewport: boolean;
+  onBackToList?: () => void;
 };
 
 const QUICK_EMOJIS = [
@@ -98,12 +100,37 @@ const EmptyState = () => (
   </div>
 );
 
+const BackButton = ({ onClick }: { onClick: () => void }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="inline-flex flex-shrink-0 items-center gap-2 rounded-full border border-white/20 bg-white/5 px-4 py-2 text-sm font-semibold text-white transition hover:border-white/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+    aria-label="Back to chats list"
+  >
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <path
+        d="M15 6l-6 6 6 6"
+        stroke="currentColor"
+        strokeWidth={2}
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+    <span>Back</span>
+  </button>
+);
+
 const ChatHeader = ({
   chat,
   participantsLookup,
+  showBackButton,
+  onBack,
 }: {
   chat: ChatRecord;
   participantsLookup: Map<string, UserProfile>;
+  showBackButton: boolean;
+  onBack?: () => void;
 }) => {
   const participantList =
     chat.participants?.length && chat.participants.length > 0
@@ -124,17 +151,22 @@ const ChatHeader = ({
       : "No participants yet";
 
   return (
-    <header className="flex flex-wrap items-end justify-between gap-2 border-b border-white/5 pb-4 flex-shrink-0">
-      <div>
-        <p className="text-sm uppercase tracking-[0.4em] text-slate-500">
-          Chat Room
-        </p>
-        <h2 className="text-2xl font-semibold text-white">
-          {chat.name ?? "Untitled chat"}
-        </h2>
-        <p className="text-sm text-slate-400">{participantList}</p>
+    <header className="flex flex-col gap-3 border-b border-white/5 pb-4 flex-shrink-0 md:flex-row md:items-end md:justify-between">
+      <div className="flex w-full items-center gap-3 md:items-end">
+        {showBackButton && onBack ? (
+          <BackButton onClick={onBack} />
+        ) : null}
+        <div className="min-w-0">
+          <p className="text-sm uppercase tracking-[0.4em] text-slate-500">
+            Chat Room
+          </p>
+          <h2 className="text-2xl font-semibold text-white">
+            {chat.name ?? "Untitled chat"}
+          </h2>
+          <p className="text-sm text-slate-400">{participantList}</p>
+        </div>
       </div>
-      <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
+      <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300 md:self-auto self-start">
         Real-time • Auto-synced
       </div>
     </header>
@@ -190,7 +222,7 @@ const MessageFeed = ({
   return (
     <div
       ref={containerRef}
-      className="flex h-full flex-col space-y-3 overflow-y-auto pr-2 text-sm"
+      className="flex h-full flex-col space-y-3 overflow-y-auto pr-2 pb-4 text-sm"
     >
       {messages.map((message, index) => {
         const mine = message.senderId === currentUserId;
@@ -449,7 +481,7 @@ const MessageComposer = ({
   };
 
   return (
-    <div className="flex-shrink-0 space-y-2 rounded-3xl border border-white/10 bg-white/5 p-3">
+    <div className="flex-shrink-0 space-y-2 rounded-2xl border border-white/10 bg-white/5 p-3 md:rounded-3xl">
       <div className="flex items-center justify-between text-xs text-slate-400">
         <div className="flex gap-2">
           <button
@@ -563,52 +595,62 @@ const ChatRoom = ({
   onSendMessage,
   currentUser,
   participantsLookup,
+  isDesktopViewport,
+  onBackToList,
 }: ChatRoomProps) => {
   const safeMessages = useMemo(
     () => messages.filter((message) => !!message.id),
     [messages],
   );
-
-  if (!chat) {
-    return (
-      <section className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-slate-950 to-black p-8">
-        <EmptyState />
-      </section>
-    );
-  }
+  const showBackButton = !isDesktopViewport && typeof onBackToList === "function";
 
   return (
-    <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col rounded-l-3xl bg-gradient-to-br from-slate-900 via-slate-950 to-black px-8 py-6">
-      <ChatHeader chat={chat} participantsLookup={participantsLookup} />
-      <div className="mt-6 flex flex-1 min-h-0 flex-col gap-4">
-        <div className="min-h-0 flex-1 overflow-hidden rounded-3xl bg-black/20 p-4">
-          {error && (
-            <p className="mb-2 rounded-2xl border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
-              {error}
-            </p>
-          )}
-          {isLoading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div
-                  key={index}
-                  className="h-16 w-full animate-pulse rounded-2xl bg-white/5"
+    <section className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col rounded-none bg-gradient-to-br from-slate-900 via-slate-950 to-black px-4 py-4 md:rounded-l-3xl md:px-8 md:py-6">
+      {chat ? (
+        <>
+          <ChatHeader
+            chat={chat}
+            participantsLookup={participantsLookup}
+            showBackButton={showBackButton}
+            onBack={onBackToList}
+          />
+          <div className="mt-4 flex flex-1 min-h-0 flex-col gap-4 md:mt-6">
+            <div className="min-h-0 flex-1 overflow-hidden rounded-2xl bg-black/20 p-3 md:rounded-3xl md:p-4">
+              {error && (
+                <p className="mb-2 rounded-2xl border border-rose-500/50 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
+                  {error}
+                </p>
+              )}
+              {isLoading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 4 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="h-16 w-full animate-pulse rounded-2xl bg-white/5"
+                    />
+                  ))}
+                </div>
+              ) : (
+                <MessageFeed
+                  messages={safeMessages}
+                  currentUserId={currentUser.id}
+                  participantsLookup={participantsLookup}
                 />
-              ))}
+              )}
             </div>
-          ) : (
-            <MessageFeed
-              messages={safeMessages}
-              currentUserId={currentUser.id}
-              participantsLookup={participantsLookup}
-            />
+            <MessageComposer disabled={isLoading} onSend={onSendMessage} />
+          </div>
+        </>
+      ) : (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
+          {showBackButton && onBackToList && (
+            <div className="self-start">
+              <BackButton onClick={onBackToList} />
+            </div>
           )}
+          <EmptyState />
         </div>
-        <MessageComposer
-          disabled={isLoading}
-          onSend={onSendMessage}
-        />
-      </div>
+      )}
     </section>
   );
 };

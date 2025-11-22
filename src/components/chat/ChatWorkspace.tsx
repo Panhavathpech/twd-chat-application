@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ChatSidebar, {
   type CreateChatRequest,
 } from "@/components/chat/ChatSidebar";
@@ -18,8 +18,44 @@ type ChatWorkspaceProps = {
   onSignOut: () => Promise<void> | void;
 };
 
+const useMediaQuery = (query: string) => {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return window.matchMedia(query).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const mediaQueryList = window.matchMedia(query);
+    const listener = (event: MediaQueryListEvent) => {
+      setMatches(event.matches);
+    };
+    setMatches(mediaQueryList.matches);
+    if (typeof mediaQueryList.addEventListener === "function") {
+      mediaQueryList.addEventListener("change", listener);
+      return () => mediaQueryList.removeEventListener("change", listener);
+    }
+    mediaQueryList.addListener(listener);
+    return () => mediaQueryList.removeListener(listener);
+  }, [query]);
+
+  return matches;
+};
+
 const ChatWorkspace = ({ currentUser, onSignOut }: ChatWorkspaceProps) => {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const [mobileView, setMobileView] = useState<"sidebar" | "chat">("sidebar");
+
+  useEffect(() => {
+    if (isDesktop) {
+      setMobileView("sidebar");
+    }
+  }, [isDesktop]);
 
   const {
     data: chatsData,
@@ -79,8 +115,11 @@ const ChatWorkspace = ({ currentUser, onSignOut }: ChatWorkspaceProps) => {
     ) {
       return selectedChatId;
     }
-    return chats[0]?.id ?? null;
-  }, [selectedChatId, chats]);
+    if (isDesktop) {
+      return chats[0]?.id ?? null;
+    }
+    return null;
+  }, [selectedChatId, chats, isDesktop]);
 
   const {
     data: messagesData,
@@ -119,6 +158,17 @@ const ChatWorkspace = ({ currentUser, onSignOut }: ChatWorkspaceProps) => {
   const activeChat =
     chats.find((chat) => chat.id === resolvedChatId) ?? null;
 
+  const handleSelectChat = (chatId: string) => {
+    setSelectedChatId(chatId);
+    if (!isDesktop) {
+      setMobileView("chat");
+    }
+  };
+
+  const handleBackToList = () => {
+    setMobileView("sidebar");
+  };
+
   const handleCreateChat = async (payload: CreateChatRequest) => {
     const chatId = generateInstantId();
     const timestamp = Date.now();
@@ -147,7 +197,7 @@ const ChatWorkspace = ({ currentUser, onSignOut }: ChatWorkspaceProps) => {
     }
 
     await db.transact(txs);
-    setSelectedChatId(chatId);
+    handleSelectChat(chatId);
   };
 
   const handleSendMessage = async ({ text, attachments }: NewMessagePayload) => {
@@ -176,36 +226,45 @@ const ChatWorkspace = ({ currentUser, onSignOut }: ChatWorkspaceProps) => {
     ]);
   };
 
+  const showSidebar = isDesktop || mobileView === "sidebar";
+  const showChatRoom = isDesktop || mobileView === "chat";
+
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 flex-row overflow-hidden bg-slate-950 text-white">
-      <div className="flex h-full min-h-0 w-[280px] max-w-full flex-shrink-0 flex-col border-r border-white/5 bg-slate-950/80 backdrop-blur-xl md:w-[320px] lg:w-[360px]">
-        <ChatSidebar
-          chats={chats}
-          loading={chatsLoading}
-          error={chatsError?.message}
-          selectedChatId={resolvedChatId}
-          onSelectChat={setSelectedChatId}
-          onCreateChat={handleCreateChat}
-          currentUser={currentUser}
-          people={people}
-          peopleLoading={usersLoading}
-          peopleError={usersError?.message}
-          onSignOut={onSignOut}
-        />
-      </div>
-      <div className="flex min-h-0 min-w-0 flex-1">
-        <ChatRoom
-          chat={activeChat}
-          messages={messages}
-          isLoading={resolvedChatId ? messagesLoading : false}
-          error={
-            resolvedChatId && messagesError ? messagesError.message : undefined
-          }
-          onSendMessage={handleSendMessage}
-          currentUser={currentUser}
-          participantsLookup={participantsLookup}
-        />
-      </div>
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-slate-950 text-white md:flex-row">
+      {showSidebar && (
+        <div className="flex h-full min-h-0 w-full max-w-full flex-shrink-0 flex-col border-b border-white/5 bg-slate-950/80 backdrop-blur-xl md:w-[320px] md:border-b-0 md:border-r lg:w-[360px]">
+          <ChatSidebar
+            chats={chats}
+            loading={chatsLoading}
+            error={chatsError?.message}
+            selectedChatId={resolvedChatId}
+            onSelectChat={handleSelectChat}
+            onCreateChat={handleCreateChat}
+            currentUser={currentUser}
+            people={people}
+            peopleLoading={usersLoading}
+            peopleError={usersError?.message}
+            onSignOut={onSignOut}
+          />
+        </div>
+      )}
+      {showChatRoom && (
+        <div className="flex min-h-0 min-w-0 flex-1">
+          <ChatRoom
+            chat={activeChat}
+            messages={messages}
+            isLoading={resolvedChatId ? messagesLoading : false}
+            error={
+              resolvedChatId && messagesError ? messagesError.message : undefined
+            }
+            onSendMessage={handleSendMessage}
+            currentUser={currentUser}
+            participantsLookup={participantsLookup}
+            isDesktopViewport={isDesktop}
+            onBackToList={handleBackToList}
+          />
+        </div>
+      )}
     </div>
   );
 };
